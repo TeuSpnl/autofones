@@ -13,23 +13,25 @@ assert opts.headless  # Guarantee that the browser is headless
 driver = Edge(options=opts)
 
 
-def opening_page(url = 'http://192.168.254.212'):
+def opening_page(url='http://192.168.254.212'):
     time_limit = 2
-    
+
     try:
         wait = WebDriverWait(driver, time_limit)
-        
+
         # Open the browser and navigate to the page
         driver.get(url)
-        
-        wait.until(lambda driver: driver.find_element_by_id("proceed-link"))
+
+        # Wait for the page to load
+        wait.until(driver.find_element("id", "proceed-link"))
 
     # If the page takes more than 2 seconds to load, close the browser
-    except WebDriverException as wde or TimeoutException as te:
-        if "net::ERR_CONNECTION_TIMED_OUT" in str(wde):
+    except (WebDriverException, TimeoutException) as e:
+        if "net::ERR_CONNECTION_TIMED_OUT" in str(e):
+            print("Connection timed out. Retrying...")
             opening_page()
         else:
-            print(wde)
+            print(e)
             driver.quit()
 
     except Exception as e:
