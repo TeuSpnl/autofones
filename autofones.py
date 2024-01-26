@@ -1,31 +1,48 @@
 from selenium.webdriver import Edge
 from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.edge.options import Options
 from selenium.common.exceptions import WebDriverException, TimeoutException
+from selenium.webdriver.common.by import By
 
-# Set the browser as headless
+import base64
+
+# Set some configurations to the browser
 opts = Options()
-opts.headless = True
+opts.headless = True  # Set te browser to headless mode
+opts.add_argument("--ignore-certificate-errors")  # Ignore certificate errors
+opts.add_argument("--ignore-ssl-errors")  # Ignore SSL errors
 assert opts.headless  # Guarantee that the browser is headless
 
 # Create a new instance of the Edge driver
 driver = Edge(options=opts)
 
+# Set the login credentials as headers to the bwoser – This skips the pop up login page
+driver.execute_cdp_cmd("Network.enable", {})
+credentials = base64.b64encode("admin:admin".encode()).decode()
+headers = {'headers': {'authorization': 'Basic ' + credentials}}
+driver.execute_cdp_cmd('Network.setExtraHTTPHeaders', headers)
 
-def opening_page(url='http://192.168.254.212'):
-    time_limit = 2
+url = 'http://192.168.253.210/'  # Testing -- To delete
 
+# Set the timeout for a page load
+driver.set_page_load_timeout(2)
+
+
+def opening_page(url='http://192.168.253.212'):
+    """ Tries to open the page and log in. If it fails, it tries the next page.
+
+    Args:
+        url (str, optional): _description_. Defaults to 'http://admin:admin@192.168.253.212'.
+    """
     try:
-        wait = WebDriverWait(driver, time_limit)
+        # Open a new tab
+        driver.execute_script("window.open('about:blank', '_blank');")
+        driver.switch_to.window(driver.window_handles[-1])
 
         # Open the browser and navigate to the page
         driver.get(url)
 
-        # Wait for the page to load
-        wait.until(driver.find_element("id", "proceed-link"))
-
-    # If the page takes more than 2 seconds to load, close the browser
+    # If the page takes more than 2 seconds to load, tries the next link. If some another error occurs, quits the browser.
     except (WebDriverException, TimeoutException) as e:
         if "net::ERR_CONNECTION_TIMED_OUT" in str(e):
             print("Connection timed out. Retrying...")
@@ -38,11 +55,14 @@ def opening_page(url='http://192.168.254.212'):
         print(e)
         driver.close()
 
-    loging_in()
+    # If the page loads, it logs in
+    loging_in(driver)
 
 
-def loging_in():
-    if "Erro de privacidade" in driver.page_source:
+def loging_in(driver):
+
+    # If the certificate error appear, it solves it
+    if "Erro de privacidade" in driver.page_source or "Privacy error" in driver.page_source:
         # Find the hidden anchor element
         continue_button = driver.find_element("id", "proceed-link")
 
@@ -57,9 +77,6 @@ opening_page()
 # for i in range(202, 226):
 #     ip_address = f"192.168.254.{i}"
 
-#     # Open a new tab
-#     driver.execute_script("window.open('about:blank', '_blank');")
-#     driver.switch_to.window(driver.window_handles[-1])
 
 #     # Navigate to the IP address
 #     driver.get(f"http://{ip_address}/")
@@ -73,12 +90,6 @@ opening_page()
 #         # Continue loading the page if the response indicates it's not safe
 #         pass
 #     elif "login" in driver.page_source and "password" in driver.page_source:
-#         # Fill in the login and password fields with "admin" if prompted
-#         username_field = driver.find_element_by_name("username")
-#         password_field = driver.find_element_by_name("password")
-#         username_field.send_keys("admin")
-#         password_field.send_keys("admin")
-#         password_field.send_keys(Keys.RETURN)
 
 #     # Print the title and URL of the current tab
 #     print('Título:', driver.title)
