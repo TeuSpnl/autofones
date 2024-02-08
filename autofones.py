@@ -1,6 +1,4 @@
 from time import sleep
-import tkinter as tk
-import pyautogui as ptgui
 import base64
 
 from selenium.webdriver import Edge
@@ -31,6 +29,11 @@ driver.set_page_load_timeout(2)
 
 
 def print_timeout_trying_next(i):
+    """Prints a message and tries the next page. If the i value is higher than 25, quits the program.
+
+    Args:
+        i (int): Final number of the phone
+    """
     if i <= 25:
         print(f"\n\nTimeout. Trying next: \n\n \
                 \n############################### \
@@ -44,37 +47,59 @@ def print_timeout_trying_next(i):
         quit()
 
 
-def wait_presence(elemento, i, continua=0):
-    # Waits for the page to load and then Open the IP settings page
+def wait(element, i, type=0, continua=0):
+    """Waits for the element to be in the page. If it takes too long, tries the next page, or stops the program.
+
+    Args:
+        element (String): The id of the element to wait for.
+        i (int): The final number of the phone
+        type (int): The type of search to be done. 0 for presence, 1 for not empty text.
+        continua (int, optional): When the program shouldn't continue to run when this error happens, set this to 1. Defaults to 0.
+    """
     try:
-        element = WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located((By.ID, f"{elemento}"))
+        result = WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.ID, f"{element}"))
         )
 
-        if element:
+        # If the type is 1, waits for the element to have a non empty text
+        if type == 1:
+            result = WebDriverWait(driver, 5).until(
+                lambda driver: driver.find_element(
+                    By.ID, f"{element}").get_attribute("value") != ""
+            )
+
+        if result:
             pass
 
-    except TimeoutException as e:
+    except TimeoutException:
         if continua == 1:
             print(f"\n\nFatal timeout error. Shutting Down. \n\n \
                     \n############################### \
                     \n###############################\n")
             driver.quit()
+            quit()
 
         else:
             print_timeout_trying_next(i)
+
+    except Exception as e:
+        print(f"\n\nFatal wait unknown error. Shutting Down: \n\n{e} \
+                  \n############################### \
+                  \n###############################\n")
+        driver.quit()
+        quit()
 
 
 def opening_page(start=12):
     """ Tries to open the page and log in. If it fails, it tries the next page.
 
     Args:
-        url (int, optional): _description_. Defaults to 12.
+        start (int, optional): The end of the ip, that's equal to the 2 last numbers of the phone. Defaults to 12.
     """
     url = f"http://182.17.2.2{start:02d}/"
 
     try:
-        # Set the login credentials as headers to the bwoser – This skips the pop up login page
+        # Set the login credentials as headers to the browser – This skips the pop up login page
         driver.execute_cdp_cmd("Network.enable", {})
         credentials = base64.b64encode("admin:admin".encode()).decode()
         headers = {'headers': {'authorization': 'Basic ' + credentials}}
@@ -82,7 +107,9 @@ def opening_page(start=12):
 
         # Open the browser and navigate to the page
         driver.get(url)
-        sleep(.5)
+
+        # Send a ESCAPE key to the page, to close any pop up that may appear
+        sleep(2)
         ActionChains(driver).send_keys(Keys.ESCAPE).perform()
 
     # If the page takes more than 2 seconds to load, tries the next link. If some another error occurs, quits the browser.
@@ -105,9 +132,10 @@ def opening_page(start=12):
         print(f"\nPrivacy error: {e}")
 
     # It waits for the page to load and then changes the DNS settings
-    wait_presence("label_operation_time", start)
+    wait("label_operation_time", start, 0)
 
-    wan(start)
+    # wan(start)
+    account(start)
 
     while start <= 25:
         opening_page(start)
@@ -116,7 +144,7 @@ def opening_page(start=12):
 
 def restart():
     driver.find_element("id", "linkMenuRestart").click()
-    wait_presence("resetSystem", 0, 1)
+    wait("resetSystem", 0, 0, 1)
     driver.find_element("id", "resetSystem").click()
     alert = driver.switch_to.alert
     alert.accept()
@@ -142,22 +170,12 @@ def privacy_fix(driver):
 
 
 def wan(i):
-    wait_presence("linkMenuNetwork", i)
     driver.find_element("id", "linkMenuNetwork").click()
     sleep(.2)
     driver.find_element("id", "linkMenuNetworkWan").click()
 
     # Wait until the input with id "ETHAddressIP" is not empty
-    try:
-        element = WebDriverWait(driver, 5).until(
-            EC.text_to_be_present_in_element_value((By.ID, "ETHAddressIP"), "")
-        )
-
-        if element:
-            pass
-
-    except TimeoutException as e:
-        print_timeout_trying_next(i)
+    wait("ETHAddressIP", i, 1)
 
     # Put as DHCP
     sleep(.5)
@@ -223,7 +241,7 @@ def change_ddos(i):
     driver.find_element("id", "li_Avançado").click()
 
     # Waits for the page to load and then activate QoS settings
-    wait_presence("enable_qos_layer_3", i, 1)
+    wait("enable_qos_layer_3", i, 0, 1)
 
     # Activate the QoS settings
     if not driver.find_element("id", "enable_qos_layer_3").is_selected():
@@ -258,28 +276,39 @@ def change_ddos(i):
     dados_value.send_keys("46")
 
 
+def account(i):
+    # Click on the account settings
+    driver.find_element("id", "linkMenuAccount").click()
+
+    # Wait until the input with id "line_caller_name" is not empty
+    wait("line_caller_name", i, 1)
+
+    account_adv_settings(i)
+
+
+def account_adv_settings(i):
+    # Click on advanced settings
+    driver.find_element("id", "li_Avançado").click()
+
+    # Wait until the input with id "register_time" is not empty
+    wait("register_time", i, 1)
+
+    # Find the input for the Min and Max RTP ports
+    MinRtpPort = driver.find_element("id", "MinPortRTP")
+    MaxRtpPort = driver.find_element("id", "MaxPortRTP")
+
+    # Clear the input fields
+    MinRtpPort.clear()
+    MaxRtpPort.clear()
+
+    # Set the values for the Min and Max RTP ports
+    MinRtpPort.send_keys("16384")
+    MaxRtpPort.send_keys("65535")
+
+    restart()
+
+
 opening_page(1)
-
-
-# # Loop through IP addresses from 192.168.254.201 to 192.168.254.225
-
-
-#     # Navigate to the IP address
-#     driver.get(f"http://{ip_address}/")
-
-#     # Check the response
-#     if "couldn't find" in driver.page_source:
-#         # Close the tab if the response indicates the page couldn't be found
-#         driver.close()
-
-#     if "Erro de privacidade" in driver.page_source:
-#         # Continue loading the page if the response indicates it's not safe
-#         pass
-#     elif "login" in driver.page_source and "password" in driver.page_source:
-
-#     # Print the title and URL of the current tab
-#     print('Título:', driver.title)
-#     print('URL:', driver.current_url)
 
 # Close the browser
 driver.quit()
