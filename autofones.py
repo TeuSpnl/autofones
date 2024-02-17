@@ -1,3 +1,4 @@
+import os
 from time import sleep
 import base64
 
@@ -17,15 +18,51 @@ opts = Options()
 opts.headless = True  # Set te browser to headless mode
 opts.add_argument("--ignore-certificate-errors")  # Ignore certificate errors
 opts.add_argument("--ignore-ssl-errors")  # Ignore SSL errors
+# Remove unecessary warning on terminal
+opts.add_experimental_option('excludeSwitches', ['enable-logging'])
 assert opts.headless  # Guarantee that the browser is headless
 
 # Create a new instance of the Edge driver
 driver = Edge(options=opts)
 
-# url = 'http://192.168.253.210/'  # Testing -- To delete
-
-# Set the timeout for a page load
+# Set the timeout for a page load to 2 secs
 driver.set_page_load_timeout(2)
+
+# Set the login credentials as headers to the browser – This skips the pop up login page
+driver.execute_cdp_cmd("Network.enable", {})
+credentials = base64.b64encode("admin:admin".encode()).decode()
+headers = {'headers': {'authorization': 'Basic ' + credentials}}
+driver.execute_cdp_cmd('Network.setExtraHTTPHeaders', headers)
+
+
+def log(i, type=0):
+    """   Gera um arquivo txt mostrando a mensagem que o programa passou na chamada    """
+
+    try:
+        # Abre o arquivo pra editá-lo
+        log = open(
+            f"ips.txt", 'at+', encoding='utf-8')
+
+    except (FileNotFoundError):  # Tenta criar o arquivo caso ele não exista
+        try:
+            log = open(
+                f"ips.txt", 'at', encoding='utf-8')
+
+        except Exception as e:
+            print(f"Erro ao criar txt do log!\nErro: {e.__class__}")
+
+    except Exception as e:
+        print(text=f"Erro ao criar log!\nErro: {e.__class__}")
+
+    # Writes the message according to its purpose
+    if type == 0:
+        log.write(f"Não abriu o 192.168.254.2{i:02d}\n\n")
+    elif type == 1:
+        log.write(f"192.168.254.2{i:02d} em conversação\n\n")
+    else:
+        pass
+
+    log.close()
 
 
 def print_timeout_trying_next(i):
@@ -96,24 +133,20 @@ def opening_page(start=12):
     Args:
         start (int, optional): The end of the ip, that's equal to the 2 last numbers of the phone. Defaults to 12.
     """
-    url = f"http://182.17.2.2{start:02d}/"
+    url = f"http://192.168.254.2{start:02d}/"
 
     try:
-        # Set the login credentials as headers to the browser – This skips the pop up login page
-        driver.execute_cdp_cmd("Network.enable", {})
-        credentials = base64.b64encode("admin:admin".encode()).decode()
-        headers = {'headers': {'authorization': 'Basic ' + credentials}}
-        driver.execute_cdp_cmd('Network.setExtraHTTPHeaders', headers)
-
         # Open the browser and navigate to the page
         driver.get(url)
-
-        # Send a ESCAPE key to the page, to close any pop up that may appear
-        sleep(2)
-        ActionChains(driver).send_keys(Keys.ESCAPE).perform()
+        
+        # Refresh to make sure the auth popup goes away
+        driver.set_page_load_timeout(10)
+        driver.refresh()
+        driver.set_page_load_timeout(2)
 
     # If the page takes more than 2 seconds to load, tries the next link. If some another error occurs, quits the browser.
     except (WebDriverException, TimeoutException) as e:
+        log(start)
         print_timeout_trying_next(start)
 
     except Exception as e:
@@ -131,23 +164,33 @@ def opening_page(start=12):
     except Exception as e:
         print(f"\nPrivacy error: {e}")
 
-    # It waits for the page to load and then changes the DNS settings
+    # It waits for the page to load to make the changes
     wait("label_operation_time", start, 0)
 
     # wan(start)
     account(start)
+    restart()
 
     while start <= 25:
-        opening_page(start)
         start += 1
+        opening_page(start)
 
 
 def restart():
+    # Open the restart menu
     driver.find_element("id", "linkMenuRestart").click()
+
+    # Wait for the element "resetSystem" to appear
     wait("resetSystem", 0, 0, 1)
+
+    # Click on the button to restart the phone
     driver.find_element("id", "resetSystem").click()
+
+    # Accepts the alert to restart the phone
     alert = driver.switch_to.alert
     alert.accept()
+
+    # Tries to print the alert text – often doen't work and it's just a debuging thing
     try:
         print(f"\nAlert text: {alert.text} \
                   \n############################### \
@@ -170,6 +213,7 @@ def privacy_fix(driver):
 
 
 def wan(i):
+    # Open the Wan settings page
     driver.find_element("id", "linkMenuNetwork").click()
     sleep(.2)
     driver.find_element("id", "linkMenuNetworkWan").click()
@@ -283,7 +327,38 @@ def account(i):
     # Wait until the input with id "line_caller_name" is not empty
     wait("line_caller_name", i, 1)
 
-    account_adv_settings(i)
+    outbounds()
+    # account_adv_settings(i)
+
+    # Save new configs
+    driver.find_element("id", "saveButton").click()
+
+    # If the telephone being used, it registers and move on
+    answer = driver.find_element(By.CLASS_NAME, "ng-binding")
+    sleep(.1)
+    if "Em conversação" in answer.text:
+        log(i, 1)
+
+
+def outbounds():
+    Add_Fst_Sip = driver.find_element("id", "outbound_proxy_ip")
+    
+    Add_Fst_Sip.clear()
+    
+    Add_Fst_Sip.send_keys("187.50.251.28")
+    
+        
+    # Find the input for the Secondary SIP settings
+    Sec_Sip = driver.find_element("id", "sip_server2")
+    Sec_Port_Sip = driver.find_element("id", "sip_server_port2")
+
+    # Clear the input field of the secondary SIP settings
+    Sec_Sip.clear()
+    Sec_Port_Sip.clear()
+
+    # Unselect the option to the outbound proxy
+    if driver.find_element("id", "outbound_proxy2").is_selected():
+        driver.find_element("id", "outbound_proxy2").click()
 
 
 def account_adv_settings(i):
@@ -305,8 +380,15 @@ def account_adv_settings(i):
     MinRtpPort.send_keys("16384")
     MaxRtpPort.send_keys("65535")
 
-    restart()
 
+# Delete the log to start a new one
+try:
+    os.remove('ips.txt')
+    print("ips.txt apagado com sucesso\n\
+            \n############################### \
+            \n###############################\n")
+except Exception as e:
+    pass
 
 opening_page(1)
 
