@@ -56,9 +56,9 @@ def log(i, type=0):
 
     # Writes the message according to its purpose
     if type == 0:
-        log.write(f"Não abriu o 192.168.254.2{i:02d}\n\n")
+        log.write(f"Não abriu o 100.64.1.2{i:02d}\n\n")
     elif type == 1:
-        log.write(f"192.168.254.2{i:02d} em conversação\n\n")
+        log.write(f"100.64.1.2{i:02d} em conversação\n\n")
     else:
         pass
 
@@ -90,8 +90,8 @@ def wait(element, i, type=0, continua=0):
     Args:
         element (String): The id of the element to wait for.
         i (int): The final number of the phone
-        type (int): The type of search to be done. 0 for presence, 1 for not empty text.
-        continua (int, optional): When the program shouldn't continue to run when this error happens, set this to 1. Defaults to 0.
+        type (int, optional): The type of search to be done. 0 for presence, 1 for not empty text.
+        continua (int, optional): When the program shouldn't continue to run when an error happens, set this to 1. Defaults to 0.
     """
     try:
         result = WebDriverWait(driver, 5).until(
@@ -133,12 +133,12 @@ def opening_page(start=12):
     Args:
         start (int, optional): The end of the ip, that's equal to the 2 last numbers of the phone. Defaults to 12.
     """
-    url = f"http://192.168.254.2{start:02d}/"
+    url = f"http://100.64.1.2{start:02d}/"
 
     try:
         # Open the browser and navigate to the page
         driver.get(url)
-        
+
         # Refresh to make sure the auth popup goes away
         driver.set_page_load_timeout(10)
         driver.refresh()
@@ -167,9 +167,10 @@ def opening_page(start=12):
     # It waits for the page to load to make the changes
     wait("label_operation_time", start, 0)
 
-    # wan(start)
     account(start)
-    restart()
+    # wan(start)
+    # restart()
+    # reset(start)
 
     while start <= 25:
         start += 1
@@ -219,7 +220,7 @@ def wan(i):
     driver.find_element("id", "linkMenuNetworkWan").click()
 
     # Wait until the input with id "ETHAddressIP" is not empty
-    wait("ETHAddressIP", i, 1)
+    wait("ETHAddressIP", i)
 
     # Put as DHCP
     sleep(.5)
@@ -227,7 +228,6 @@ def wan(i):
         driver.find_element("id", "ETHActivateDHCPClient_static").click()
 
     change_ddos(i)
-
     # change_ip(i)
     # change_dns()
 
@@ -239,9 +239,9 @@ def wan(i):
 
 def change_ip(i):
 
-    ip_value = f"182.17.2.2{i:02d}"
+    ip_value = f"100.64.1.2{i:02d}"
     mask_value = "255.255.255.0"
-    gateway_value = "182.17.2.254"
+    gateway_value = "100.64.1.253"
 
     # Upadate the IP settings and save
     ip = driver.find_element("id", "ETHAddressIP")
@@ -267,8 +267,8 @@ def change_dns():
     # DNS_screen.geometry("500x350")
 
     # DNS_screen.mainloop()
-    DNSprima = "1.1.1.1"
-    DNSsecun = "1.0.0.1"
+    DNSprima = "100.64.1.1"
+    DNSsecun = "1.1.1.1"
 
     # Upadate the DNS settings and save
     primary = driver.find_element("id", "ETHPriDNS")
@@ -341,13 +341,12 @@ def account(i):
 
 
 def outbounds():
-    Add_Fst_Sip = driver.find_element("id", "outbound_proxy_ip")
-    
-    Add_Fst_Sip.clear()
-    
-    Add_Fst_Sip.send_keys("187.50.251.28")
-    
-        
+    # Fst_Port_Sip = driver.find_element("id", "outbound_proxy_ip")
+
+    # Fst_Port_Sip.clear()
+
+    # Fst_Port_Sip.send_keys("187.50.251.28")
+
     # Find the input for the Secondary SIP settings
     Sec_Sip = driver.find_element("id", "sip_server2")
     Sec_Port_Sip = driver.find_element("id", "sip_server_port2")
@@ -355,6 +354,10 @@ def outbounds():
     # Clear the input field of the secondary SIP settings
     Sec_Sip.clear()
     Sec_Port_Sip.clear()
+    
+    # Set the values for the secondary SIP settings
+    Sec_Sip.send_keys("100.64.1.58")
+    Sec_Port_Sip.send_keys("5060")
 
     # Unselect the option to the outbound proxy
     if driver.find_element("id", "outbound_proxy2").is_selected():
@@ -379,6 +382,22 @@ def account_adv_settings(i):
     # Set the values for the Min and Max RTP ports
     MinRtpPort.send_keys("16384")
     MaxRtpPort.send_keys("65535")
+
+
+def reset(i):
+    # Click on the reset settings
+    driver.find_element("id", "linkMenuReset").click()
+
+    wait("resetDataBase", i)
+
+    # Click on reset button
+    driver.find_element("id", "resetDataBase").click()
+
+    sleep(.25)
+
+    # Accepts the alert to reset the phone
+    alert = driver.switch_to.alert
+    alert.accept()
 
 
 # Delete the log to start a new one
